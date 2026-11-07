@@ -1,21 +1,50 @@
 # ohos-wayland
 
-ohos-wayland runs aarch64 Linux Wayland apps as ordinary HarmonyOS apps on a HarmonyOS 7 PC. Each HAP contains a Wayland compositor, Mesa, and one app's files. The app renders through Zink and the system Vulkan driver. It presents into a HarmonyOS window without a VM, an X server, or a remote desktop.
+ohos-wayland runs Linux Wayland apps on a HarmonyOS PC as ordinary HarmonyOS apps, drawn by the device's own GPU. There is no VM, X server, remote desktop, or streaming.
 
-The repository contains the shared runtime, the `ohos_wl.py` packager, the native title bar protocol and GTK bridge, and a testing bottle. Apps arrive as prebuilt binaries. The runtime and packager need no app-specific patches.
+Each HAP contains a Wayland compositor, Mesa, and one app's files. The app renders through Zink and Huawei's Vulkan driver, and it presents into its own HarmonyOS window.
+
+This repository contains the shared runtime, the `ohos_wl.py` packager, the native title bar protocol and GTK bridge, and a testing bottle. Apps arrive as prebuilt binaries, and the runtime and packager need no app-specific patches.
 
 ![A GTK 4 app with a native HarmonyOS title bar](evidence/gtk-demo.png)
 
-## What works
+## Why this exists
 
-- Wayland clients render through Mesa EGL and Zink. In-process clients present without CPU frame copies.
-- Stock executables run from the HAP's private native package. Their presentation path is in [the architecture document](docs/architecture.md#presenting-from-another-process).
-- GTK 4 header bars become native HarmonyOS title bars. Buttons and menus keep their GTK actions.
-- A maximized window keeps the native title bar at the top of the window. A bottle can choose a hover overlay with `titlebarMode`.
-- Keyboard, mouse, touch, touchpad scrolling, clipboard, and HarmonyOS drag and drop share the same runtime path across apps.
-- The diagnostics overlay shows presentation rate, frame pacing, input latency, buffer geometry, and memory use. Press **Ctrl+Alt+Shift+D** to toggle it.
+HarmonyOS PCs have a capable GPU, but Linux desktop apps had no direct way to reach it.
+
+- The openEuler VM measured on a MateBook Fold has no GPU device attached, so its apps have no hardware rendering.
+- Forwarding from a container, as [lohg](https://github.com/luyanaa/lohg) does, reaches the GPU by sending windows and GL commands over TCP.
+- Terminals such as [Termony](https://github.com/TermonyHQ/Termony) run command-line programs, not Wayland apps.
+
+This project set one rule from the start: an app runs on the device, renders on the GPU, and appears in a real HarmonyOS window. The first target was Ghostty, which needs desktop OpenGL.
+
+## What you get
+
+- **Native GPU rendering.** Apps draw on the GPU through the system driver. On a MateBook Fold, both an in-process client and a separately executed one report `zink Vulkan 1.2(Maleoon 916 (ARM_PROPRIETARY))`.
+- **Desktop OpenGL.** Zink supplies the desktop OpenGL that Linux apps expect, on top of Vulkan.
+- **Unmodified Linux binaries.** Stock aarch64 musl programs from Alpine Linux run from the HAP's private native package. Ghostty, Alacritty, `weston-simple-egl`, ripgrep, Node, and `ssh` run with no patches. A patched Zed build, which is not in this repository, also runs in process.
+- **A real HarmonyOS app for each program.** Each app has its own HAP and window. GTK 4 header bars become native HarmonyOS title bars, and buttons and menus keep their GTK actions. A maximized window keeps the native title bar at the top, and a bottle can choose a hover overlay with `titlebarMode`.
+- **Shared input and data.** Keyboard, mouse, touch, touchpad scrolling, clipboard, and HarmonyOS drag and drop use the same runtime path in every app.
+- **Live measurements.** Press **Ctrl+Alt+Shift+D** to show presentation rate, frame pacing, input latency, buffer geometry, and memory use.
 
 ![The live diagnostics overlay over a GTK 4 app](evidence/diagnostics-overlay.png)
+
+## How frames reach the screen
+
+Both kinds of app render on the GPU. They differ in how a finished frame reaches the window, because an executed program cannot receive a HarmonyOS window handle.
+
+| App kind | Examples | Cost per frame after rendering |
+| --- | --- | --- |
+| Library loaded in the app's process | `gl-demo`, the Zed build | No frame copy |
+| Stock executable | Ghostty, `weston-simple-egl` | One GPU copy and one CPU copy, off the app's render thread |
+
+On a 120 Hz MatePad Edge, stock `weston-simple-egl` runs at 117 to 120 fps at 2090x1324, and the copy takes 2.7 to 2.9 ms per frame. [The architecture document](docs/architecture.md#presenting-from-another-process) describes both paths.
+
+## Status
+
+Version 0.1.0 is early. It has run on a MatePad Edge and a MateBook Fold, both with Maleoon GPUs. The device tests pass on the Fold, except `user-dirs`, which stalls under a borrowed signing bundle. The steps below have not yet been run from a clean clone, so open an issue if one fails.
+
+Bottles for Ghostty, Alacritty, and Zed are not in this repository. The testing bottle includes `weston-simple-egl` and ripgrep, and [Add an app](#add-an-app) shows how to package your own.
 
 ## Requirements
 
@@ -124,11 +153,12 @@ GitHub releases contain source code only. They contain no HAPs or prebuilt runti
 
 - An app may execute `/system/bin` programs and programs in its own native package. Bottle every helper the app starts.
 - Stock executables copy presented images into host-owned window buffers. In-process clients do not copy frames.
+- Zink reports OpenGL 4.0 on the Maleoon. The runtime overrides the version to 4.3 because Ghostty and wgpu require it, so features beyond 4.0 can be missing. Mesa also warns that the driver lacks some base Zink requirements, so some rendering can be wrong.
 - Only the newest toplevel and its popups appear. A second window from the same app is not presented.
 - The first buffer after a window handoff can fail `OH_NativeImage_UpdateSurfaceImage` with `60002000`. An app that draws once and then waits may stay blank.
 - Native title bars cover GTK 4. A header bar with a custom popover or an unknown widget falls back to a styled GTK header bar.
 - A hover title bar does not animate in step with the status bar, because no HarmonyOS window API reports the status bar.
-- The project has been tested on a small number of devices and GPUs. New devices need runtime verification.
+- Other devices and GPUs are untested and need runtime verification.
 
 ## Repository layout
 
