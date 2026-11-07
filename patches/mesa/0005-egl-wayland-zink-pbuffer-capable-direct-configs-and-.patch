@@ -1,0 +1,74 @@
+From 316d81663b40e9a4151189b1e9e28fae97e9c948 Mon Sep 17 00:00:00 2001
+From: Device Exploration <device-exploration@localhost>
+Date: Wed, 28 Oct 2026 18:22:47 +0800
+Subject: [PATCH 5/5] egl/wayland, zink: pbuffer-capable direct configs and
+ read-only vertex SSBOs
+
+wgpu only accepts EGL configs that allow pbuffers, so the OHOS direct-window
+RGBA configs declare EGL_PBUFFER_BIT; wgpu renders off-screen through
+surfaceless contexts.
+
+Zink storage buffers in vertex-pipeline stages are decorated NonWritable
+when the shader never writes memory. ZINK_READONLY_VERTEX_SSBO exposes them
+on devices without vertexPipelineStoresAndAtomics (Maleoon 916B), which
+wgpu and gpui need.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/egl/drivers/dri2/platform_wayland.c              | 5 ++++-
+ src/gallium/drivers/zink/nir_to_spirv/nir_to_spirv.c | 5 +++++
+ src/gallium/drivers/zink/zink_screen.c               | 6 +++++-
+ 3 files changed, 14 insertions(+), 2 deletions(-)
+
+diff --git a/src/egl/drivers/dri2/platform_wayland.c b/src/egl/drivers/dri2/platform_wayland.c
+index 0da84c72..b44fe130 100755
+--- a/src/egl/drivers/dri2/platform_wayland.c
++++ b/src/egl/drivers/dri2/platform_wayland.c
+@@ -2176,7 +2176,10 @@ dri2_wl_add_configs_for_visuals(_EGLDisplay *disp)
+          const enum pipe_format format = dri2_wl_visuals[idx].pipe_format;
+          if (format != PIPE_FORMAT_RGBA8888_UNORM && format != PIPE_FORMAT_RGBX8888_UNORM)
+             continue;
+-         if (dri2_add_config(disp, dri2_dpy->driver_configs[i], EGL_WINDOW_BIT, NULL))
++         /* wgpu only accepts configs that also allow pbuffers; it renders
++          * off-screen through surfaceless contexts, not pbuffer surfaces. */
++         if (dri2_add_config(disp, dri2_dpy->driver_configs[i],
++                             EGL_WINDOW_BIT | EGL_PBUFFER_BIT, NULL))
+             format_count[idx]++;
+          continue;
+       }
+diff --git a/src/gallium/drivers/zink/nir_to_spirv/nir_to_spirv.c b/src/gallium/drivers/zink/nir_to_spirv/nir_to_spirv.c
+index fa626382..b25472b8 100644
+--- a/src/gallium/drivers/zink/nir_to_spirv/nir_to_spirv.c
++++ b/src/gallium/drivers/zink/nir_to_spirv/nir_to_spirv.c
+@@ -1360,6 +1360,11 @@ emit_bo(struct ntv_context *ctx, struct nir_variable *var, bool aliased)
+    if (aliased)
+       spirv_builder_emit_decoration(&ctx->builder, var_id, SpvDecorationAliased);
+ 
++   /* Without vertexPipelineStoresAndAtomics, vertex-pipeline storage buffers
++    * must be NonWritable; it is accurate whenever the shader never writes. */
++   if (ssbo && ctx->nir->info.stage < MESA_SHADER_FRAGMENT && !ctx->nir->info.writes_memory)
++      spirv_builder_emit_decoration(&ctx->builder, var_id, SpvDecorationNonWritable);
++
+    unsigned idx = bitsize >> 4;
+    assert(idx < ARRAY_SIZE(ctx->ssbos));
+    if (ssbo) {
+diff --git a/src/gallium/drivers/zink/zink_screen.c b/src/gallium/drivers/zink/zink_screen.c
+index b979d8ea..fc37fb9b 100644
+--- a/src/gallium/drivers/zink/zink_screen.c
++++ b/src/gallium/drivers/zink/zink_screen.c
+@@ -722,7 +722,11 @@ zink_get_shader_param(struct pipe_screen *pscreen,
+       case MESA_SHADER_TESS_CTRL:
+       case MESA_SHADER_TESS_EVAL:
+       case MESA_SHADER_GEOMETRY:
+-         if (!screen->info.feats.features.vertexPipelineStoresAndAtomics)
++         /* ZINK_READONLY_VERTEX_SSBO exposes read-only vertex SSBOs (wgpu,
++          * gpui) on devices without vertexPipelineStoresAndAtomics; shaders
++          * that do not write memory get NonWritable storage buffers. */
++         if (!screen->info.feats.features.vertexPipelineStoresAndAtomics &&
++             !debug_get_bool_option("ZINK_READONLY_VERTEX_SSBO", false))
+             return 0;
+          break;
+ 
+-- 
+2.43.0
+

@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<protocol name="ohos_titlebar_v1">
+  <copyright>Device Exploration. Private protocol of ohos-wayland.</copyright>
+
+  <interface name="ohos_titlebar_manager_v1" version="1">
+    <description summary="native HarmonyOS title bars for toolkit header bars">
+      A client that can describe its header bar asks for a title bar object
+      for a toplevel's wl_surface. The compositor then draws the header bar
+      as a HarmonyOS title bar and reports what the user activates.
+    </description>
+    <request name="destroy" type="destructor"/>
+    <request name="get_titlebar">
+      <arg name="id" type="new_id" interface="ohos_titlebar_v1"/>
+      <arg name="surface" type="object" interface="wl_surface"/>
+    </request>
+  </interface>
+
+  <interface name="ohos_titlebar_v1" version="1">
+    <description summary="one toplevel's header bar">
+      The description is a JSON document, sent in chunks because a Wayland
+      message is limited in size. append adds a chunk; commit makes the
+      appended text the current description and starts a new one. A
+      description of {"native":false} hands the title bar back to the
+      client.
+    </description>
+    <request name="destroy" type="destructor"/>
+    <request name="append">
+      <arg name="chunk" type="string"/>
+    </request>
+    <request name="commit"/>
+    <event name="activate">
+      <description summary="the user activated an item">
+        Tab-separated fields: the description serial, the item id, and for
+        a menu item its action and GVariant text target. A tab's action is
+        "close" to close it, empty to select it. An activation for an older
+        serial is ignored.
+      </description>
+      <arg name="message" type="string"/>
+    </event>
+  </interface>
+</protocol>

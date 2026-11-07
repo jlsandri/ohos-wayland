@@ -1,0 +1,12 @@
+[Icon Theme]
+Name=HarmonyOS
+Comment=HarmonyOS window control glyphs over Adwaita
+Inherits=Adwaita,hicolor
+Directories=scalable/ui
+
+[scalable/ui]
+Size=16
+MinSize=8
+MaxSize=512
+Type=Scalable
+Context=UI

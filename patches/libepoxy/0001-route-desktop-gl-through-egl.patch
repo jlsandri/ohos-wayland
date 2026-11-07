@@ -1,0 +1,54 @@
+From 313a0f7e15b4647b399cad49e8b800ce96e80951 Mon Sep 17 00:00:00 2001
+From: Device Exploration <device-exploration@localhost>
+Date: Tue, 27 Oct 2026 20:32:05 +0800
+Subject: [PATCH] route desktop GL through EGL
+
+---
+ src/dispatch_common.c | 14 +++++++++++++-
+ 1 file changed, 13 insertions(+), 1 deletion(-)
+
+diff --git a/src/dispatch_common.c b/src/dispatch_common.c
+index 0926296..46363d6 100644
+--- a/src/dispatch_common.c
++++ b/src/dispatch_common.c
+@@ -672,6 +672,12 @@ epoxy_load_gl(void)
+     if (api.gl_handle)
+ 	return;
+ 
++#ifdef WINEHUA_EGL_ONLY
++    epoxy_load_egl(true, true);
++    api.gl_handle = api.egl_handle;
++    return;
++#endif
++
+ #if defined(_WIN32) || defined(__APPLE__)
+     get_dlopen_handle(&api.gl_handle, OPENGL_LIB, true, true);
+ #else
+@@ -703,9 +709,13 @@ epoxy_load_gl(void)
+ void *
+ epoxy_gl_dlsym(const char *name)
+ {
++#ifdef WINEHUA_EGL_ONLY
++    return epoxy_get_proc_address(name);
++#else
+     epoxy_load_gl();
+ 
+     return do_dlsym(&api.gl_handle, name, true);
++#endif
+ }
+ 
+ void *
+@@ -764,7 +774,9 @@ epoxy_gles3_dlsym(const char *name)
+ void *
+ epoxy_get_core_proc_address(const char *name, int core_version)
+ {
+-#ifdef _WIN32
++#ifdef WINEHUA_EGL_ONLY
++    int core_symbol_support = 0;
++#elif defined(_WIN32)
+     int core_symbol_support = 11;
+ #elif defined(__ANDROID__)
+     /**
+-- 
+2.56.0
+

@@ -1,0 +1,33 @@
+From dba7f20bf40b309a47964ac7e9b4ed4ef63fe938 Mon Sep 17 00:00:00 2001
+From: Device Exploration <device-exploration@localhost>
+Date: Tue, 27 Oct 2026 22:23:30 +0800
+Subject: [PATCH 2/3] gdk: request desktop GL configs for OHOS direct windows
+
+OHOS_WAYLAND_DIRECT_WINDOW selects Zink on the device GPU, which offers
+only desktop OpenGL configs, so request EGL_OPENGL_BIT as the Venus
+runtime already does.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ gdk/gdkdisplay.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+ mode change 100644 => 100755 gdk/gdkdisplay.c
+
+diff --git a/gdk/gdkdisplay.c b/gdk/gdkdisplay.c
+old mode 100644
+new mode 100755
+index e646067..f41a706
+--- a/gdk/gdkdisplay.c
++++ b/gdk/gdkdisplay.c
+@@ -1720,7 +1720,7 @@ gdk_display_create_egl_config (GdkDisplay               *self,
+       attrs[i++] = EGL_DONT_CARE;
+     }
+ 
+-  if (g_getenv ("WINEHUA_VTEST_PRESENT"))
++  if (g_getenv ("WINEHUA_VTEST_PRESENT") || g_getenv ("OHOS_WAYLAND_DIRECT_WINDOW"))
+     {
+       attrs[i++] = EGL_RENDERABLE_TYPE;
+       attrs[i++] = EGL_OPENGL_BIT;
+-- 
+2.43.0
+

@@ -1,0 +1,12 @@
+# External sources the build scripts read, pinned. app/scripts/fetch_sources.sh
+# clones each at its commit and applies its patch series with git am.
+# path	url	commit	upstream ref	licence	patches
+upstream/thirdparty/mesa	https://github.com/winehua/mesa-ohos.git	2939cbb816d3a3c5fcf3147fb8436e105d0a0ee8	winehua/mesa-ohos (Mesa 25.0.1)	MIT	patches/mesa
+upstream/thirdparty/wayland	https://gitlab.freedesktop.org/wayland/wayland.git	93c04ad3670633aea6f2435059378b75843b8e70	main	MIT	-
+upstream/thirdparty/wayland-protocols	https://gitlab.freedesktop.org/wayland/wayland-protocols.git	b9edf66597586c914b5b1ff3d964d7ed201adab9	main	MIT	-
+upstream/thirdparty/libdrm	https://gitee.com/openharmony/third_party_libdrm.git	bdd6856d4a488121c120237c2b7c33b17f6a1df1	OpenHarmony-v6.0-Release	MIT	-
+upstream/thirdparty/libepoxy	https://github.com/winehua/libepoxy.git	2597254fd42e021225db02734340857cae9a2596	winehua/libepoxy	MIT	patches/libepoxy
+upstream/thirdparty/libffi	https://github.com/libffi/libffi.git	bc553867367246d140cd156f060bd0409f57f157	master	MIT	-
+thirdparty/gtk	https://github.com/GNOME/gtk.git	f6c08071de95c0901d82414f69ffcbfc5fd63891	4.20.3	LGPL-2.1-or-later	patches/gtk
+thirdparty/libadwaita	https://github.com/GNOME/libadwaita.git	827503edd1faeb36a174c5721b90079918abe51a	1.8.3	LGPL-2.1-or-later	patches/libadwaita
+thirdparty/gtk4-layer-shell	https://github.com/wmww/gtk4-layer-shell.git	1c963c51514581c41b9bdae08cdf69171265cdda	v1.3.0	MIT	-

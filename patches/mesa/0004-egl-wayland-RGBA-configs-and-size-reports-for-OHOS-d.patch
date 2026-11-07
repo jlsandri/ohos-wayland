@@ -1,0 +1,92 @@
+From 5501abcf491b492bb1f2cb393e31b131314136ea Mon Sep 17 00:00:00 2001
+From: Device Exploration <device-exploration@localhost>
+Date: Wed, 28 Oct 2026 10:49:15 +0800
+Subject: [PATCH 4/5] egl/wayland: RGBA configs and size reports for OHOS
+ direct windows
+
+The OHOS swapchain labels every buffer RGBA, so BGRA configs showed red
+and blue swapped. In direct mode, report RGBA ordering to the DRI
+frontend and offer only RGBA-ordered visuals. Report each swap's buffer
+size as full-buffer damage, since no wl_buffer carries it.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/egl/drivers/dri2/platform_wayland.c | 40 +++++++++++++++++++++++++
+ 1 file changed, 40 insertions(+)
+
+diff --git a/src/egl/drivers/dri2/platform_wayland.c b/src/egl/drivers/dri2/platform_wayland.c
+index 85dcd073..0da84c72 100755
+--- a/src/egl/drivers/dri2/platform_wayland.c
++++ b/src/egl/drivers/dri2/platform_wayland.c
+@@ -2149,6 +2149,10 @@ static const __DRIextension *dri2_loader_extensions[] = {
+    NULL,
+ };
+ 
++#ifdef VK_USE_PLATFORM_OHOS
++static bool ohos_direct_window_enabled(void);
++#endif
++
+ static void
+ dri2_wl_add_configs_for_visuals(_EGLDisplay *disp)
+ {
+@@ -2164,6 +2168,20 @@ dri2_wl_add_configs_for_visuals(_EGLDisplay *disp)
+       if (idx < 0)
+          continue;
+ 
++#ifdef VK_USE_PLATFORM_OHOS
++      /* The OHOS swapchain labels every buffer RGBA, so BGRA-ordered configs
++       * would present with red and blue swapped. No wl_buffers are used, so
++       * the compositor's wl_shm formats do not apply. */
++      if (ohos_direct_window_enabled()) {
++         const enum pipe_format format = dri2_wl_visuals[idx].pipe_format;
++         if (format != PIPE_FORMAT_RGBA8888_UNORM && format != PIPE_FORMAT_RGBX8888_UNORM)
++            continue;
++         if (dri2_add_config(disp, dri2_dpy->driver_configs[i], EGL_WINDOW_BIT, NULL))
++            format_count[idx]++;
++         continue;
++      }
++#endif
++
+       /* Check if the server natively supports the colour buffer format */
+       if (!server_supports_format(&dri2_dpy->formats, idx)) {
+          /* In multi-GPU scenarios, we usually have a different buffer, so a
+@@ -2728,6 +2746,11 @@ dri2_wl_kopper_swap_buffers_with_damage(_EGLDisplay *disp, _EGLSurface *draw,
+     * so commit here to deliver the frame callback and pending surface state.
+     */
+    if (dri2_surf->ohos_direct) {
++      /* No wl_buffer carries the size, so report it as full-buffer damage. */
++      if (wl_proxy_get_version((struct wl_proxy *)dri2_surf->wl_surface_wrapper) >=
++          WL_SURFACE_DAMAGE_BUFFER_SINCE_VERSION)
++         wl_surface_damage_buffer(dri2_surf->wl_surface_wrapper, 0, 0,
++                                  dri2_surf->base.Width, dri2_surf->base.Height);
+       wl_surface_commit(dri2_surf->wl_surface_wrapper);
+       wl_display_flush(dri2_dpy->wl_dpy);
+    }
+@@ -3053,7 +3076,24 @@ static const __DRIextension *swrast_loader_extensions[] = {
+    &image_lookup_extension.base,
+    NULL,
+ };
++#ifdef VK_USE_PLATFORM_OHOS
++/* RGBA-ordered configs exist only when the loader reports the capability. */
++static unsigned
++dri2_wl_kopper_get_capability(void *loaderPrivate, enum dri_loader_cap cap)
++{
++   return cap == DRI_LOADER_CAP_RGBA_ORDERING && ohos_direct_window_enabled();
++}
++
++static const __DRIdri2LoaderExtension kopper_dri2_loader_extension = {
++   .base = {__DRI_DRI2_LOADER, 4},
++   .getCapability = dri2_wl_kopper_get_capability,
++};
++#endif
++
+ static const __DRIextension *kopper_swrast_loader_extensions[] = {
++#ifdef VK_USE_PLATFORM_OHOS
++   &kopper_dri2_loader_extension.base,
++#endif
+    &kopper_swrast_loader_extension.base,
+    &image_lookup_extension.base,
+    &kopper_loader_extension.base,
+-- 
+2.43.0
+

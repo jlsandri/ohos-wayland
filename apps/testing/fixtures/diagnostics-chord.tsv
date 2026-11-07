@@ -1,0 +1,18 @@
+# Ctrl+Alt+Shift+D, then the same chord 10 s later: the diagnostics overlay
+# shows and hides, and the app never receives the D (evdev 32).
+0	key	29	1
+30	key	56	1
+30	key	42	1
+30	key	32	1
+60	key	32	0
+30	key	42	0
+30	key	56	0
+30	key	29	0
+10000	key	29	1
+30	key	56	1
+30	key	42	1
+30	key	32	1
+60	key	32	0
+30	key	42	0
+30	key	56	0
+30	key	29	0

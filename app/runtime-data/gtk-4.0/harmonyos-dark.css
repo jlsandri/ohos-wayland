@@ -1,0 +1,55 @@
+/* HarmonyOS dark style for GTK and libadwaita apps on ohos-wayland.
+   The launcher copies this file to the app's gtk-4.0/gtk.css for the
+   current HarmonyOS colour mode. libadwaita reads the CSS variables; plain
+   GTK keeps its named colours inside its own theme, so explicit rules
+   recolour the common surfaces. The launcher appends the title bar rules
+   (TitleBarStyle.ets), which follow the ArkUI window decor. */
+
+:root {
+  --accent-blue: #317af7;
+  --accent-bg-color: #317af7;
+  --accent-fg-color: #ffffff;
+  --accent-color: #317af7;
+  --window-bg-color: #000000;
+  --window-fg-color: rgba(255,255,255,0.86);
+  --view-bg-color: #1a1a1a;
+  --view-fg-color: rgba(255,255,255,0.86);
+  --headerbar-bg-color: #1a1a1a;
+  --headerbar-fg-color: rgba(255,255,255,0.86);
+  --headerbar-backdrop-color: #1a1a1a;
+  --headerbar-shade-color: transparent;
+  --card-bg-color: #262626;
+  --card-fg-color: rgba(255,255,255,0.86);
+  --popover-bg-color: #262626;
+  --popover-fg-color: rgba(255,255,255,0.86);
+  --dialog-bg-color: #262626;
+  --dialog-fg-color: rgba(255,255,255,0.86);
+  --sidebar-bg-color: #121212;
+  --sidebar-fg-color: rgba(255,255,255,0.86);
+}
+
+window, window.background { background-color: #000000; color: rgba(255,255,255,0.86); }
+window.csd { border-radius: 16px; }
+.view, textview > text, list, listview, columnview, iconview { background-color: #1a1a1a; color: rgba(255,255,255,0.86); }
+list.boxed-list, .card { background-color: #262626; border-radius: 16px; border: none; }
+list.boxed-list > row { border-color: rgba(255,255,255,0.1); }
+.dim-label, label.dim-label { color: rgba(255,255,255,0.6); opacity: 1; }
+
+/* Controls: capsule buttons and the HarmonyOS brand blue. */
+button { border-radius: 9999px; }
+button:not(.flat):not(.suggested-action):not(.destructive-action) { background-color: rgba(255,255,255,0.1); }
+button.suggested-action, button.default { background-color: #317af7; color: #ffffff; }
+button.destructive-action { background-color: #e84026; color: #ffffff; }
+entry, spinbutton, dropdown > button { border-radius: 12px; background-color: rgba(255,255,255,0.1); }
+entry:focus-within { outline-color: #317af7; }
+switch { background-color: rgba(255,255,255,0.15); }
+switch:checked { background-color: #317af7; }
+check:checked, radio:checked { background-color: #317af7; color: #ffffff; }
+scale highlight, progressbar progress, levelbar block.filled { background-color: #317af7; }
+scale trough, progressbar trough { background-color: rgba(255,255,255,0.15); }
+popover > contents, popover > arrow { background-color: #262626; border-radius: 16px; }
+tabbar tab { border-radius: 12px; }
+tabbar tab:selected { background-color: rgba(255,255,255,0.1); }
+stackswitcher > button:checked { background-color: rgba(255,255,255,0.1); }
+
+/* The launcher appends the title bar, sized for the display density. */

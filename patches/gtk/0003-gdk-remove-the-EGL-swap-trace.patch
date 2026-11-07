@@ -1,0 +1,30 @@
+From 5667bca6b0cd17c3fb88c01ebdc23e0b8db1b713 Mon Sep 17 00:00:00 2001
+From: Device Exploration <device-exploration@localhost>
+Date: Tue, 27 Oct 2026 22:43:24 +0800
+Subject: [PATCH 3/3] gdk: remove the EGL swap trace
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ gdk/gdkglcontext.c | 6 ------
+ 1 file changed, 6 deletions(-)
+
+diff --git a/gdk/gdkglcontext.c b/gdk/gdkglcontext.c
+index f82810d..a779907 100644
+--- a/gdk/gdkglcontext.c
++++ b/gdk/gdkglcontext.c
+@@ -784,12 +784,6 @@ gdk_gl_context_real_end_frame (GdkDrawContext *draw_context,
+ 
+   gdk_draw_context_get_buffer_size (draw_context, &buffer_width, &buffer_height);
+ 
+-  static guint swap_calls = 0;
+-  ++swap_calls;
+-  if (swap_calls <= 10 || swap_calls % 120 == 0)
+-    g_printerr ("GTK_EGL_SWAP call=%u surface=%p egl_surface=%p size=%ux%u\n",
+-                swap_calls, surface, priv->egl_surface, buffer_width, buffer_height);
+-
+   if (priv->eglSwapBuffersWithDamage &&
+       cairo_region_contains_rectangle (painted,
+                                        &(cairo_rectangle_int_t) {
+-- 
+2.43.0
+

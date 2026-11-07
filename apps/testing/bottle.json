@@ -1,0 +1,233 @@
+{
+  "label": "Wayland Testing",
+  "programs": {
+    "libnative_gl_demo.so": "native:libnative_gl_demo.so",
+    "libnative_demo.so": "native:libnative_demo.so",
+    "libwlapp_wl-gl-probe.so": "../../tools/wl-gl-probe/build/wl-gl-probe",
+    "libwlapp_shm-probe.so": "../../tools/shm-probe/build/shm-probe",
+    "libwlapp_syscall-probe.so": "../../tools/syscall-probe/build/syscall-probe",
+    "libwlapp_tls-probe.so": "../../tools/tls-probe/target/aarch64-unknown-linux-musl/release/tls-probe",
+    "libnative_gtk_demo.so": "native:libnative_gtk_demo.so"
+  },
+  "alpine": [
+    "weston-clients",
+    "ripgrep",
+    "busybox"
+  ],
+  "hnp": {
+    "wl-gl-probe": "../../tools/wl-gl-probe/build/wl-gl-probe",
+    "weston-simple-egl": "alpine:usr/bin/weston-simple-egl",
+    "rg": "alpine:usr/bin/rg",
+    "scroll-probe": "../../tools/scroll-probe/build/scroll-probe",
+    "hover-probe": "../../tools/hover-probe/build/hover-probe",
+    "sh": "alpine:bin/busybox"
+  },
+  "manifest": {
+    "exec": "libnative_gl_demo.so",
+    "entry": "OhosWaylandGlDemoMain",
+    "defaultTest": "gl-demo",
+    "tests": {
+      "gl-demo": {
+        "exec": "libnative_gl_demo.so",
+        "entry": "OhosWaylandGlDemoMain",
+        "expect": "GPU_PRESENT key="
+      },
+      "shm-demo": {
+        "exec": "libnative_demo.so",
+        "entry": "OhosWaylandDemoMain",
+        "gpu": false,
+        "expect": "buffer release end",
+        "seconds": 15
+      },
+      "wl-gl-probe": {
+        "exec": "libwlapp_wl-gl-probe.so",
+        "expect": "WL_GL_PROBE frame="
+      },
+      "shm-probe": {
+        "exec": "libwlapp_shm-probe.so",
+        "expect": "SHM_PROBE fstat(memfd)"
+      },
+      "syscall-probe": {
+        "exec": "libwlapp_syscall-probe.so",
+        "expect": "SYSCALL_PROBE"
+      },
+      "tls-probe": {
+        "exec": "libwlapp_tls-probe.so",
+        "expect": "TLS_PROBE main=42 worker=0"
+      },
+      "gtk-demo": {
+        "exec": "libnative_gtk_demo.so",
+        "entry": "OhosWaylandGtkDemoMain",
+        "env": [
+          "G_DBUS_DEBUG=signal,return,emission"
+        ],
+        "expect": "GTK_DEMO_PRESENT",
+        "seconds": 15
+      },
+      "exec-tls": {
+        "exec": "hnp:rg",
+        "args": [
+          "--version"
+        ],
+        "expect": "ripgrep "
+      },
+      "exec-gl": {
+        "exec": "hnp:wl-gl-probe",
+        "env": [
+          "WAYLAND_DEBUG=1",
+          "EGL_LOG_LEVEL=debug",
+          "MESA_DEBUG=1"
+        ],
+        "expect": "WL_GL_PROBE frame="
+      },
+      "stock-egl": {
+        "exec": "hnp:weston-simple-egl",
+        "expect": "REMOTE_WSI_PRESENT",
+        "seconds": 15
+      },
+      "scroll-replay": {
+        "exec": "hnp:scroll-probe",
+        "gpu": false,
+        "replay": "${FILES}/fixtures/touchpad-swipe.tsv",
+        "expect": "stops=4",
+        "seconds": 20
+      },
+      "diagnostics-overlay": {
+        "exec": "libnative_gl_demo.so",
+        "entry": "OhosWaylandGlDemoMain",
+        "replay": "${FILES}/fixtures/diagnostics-chord.tsv",
+        "expect": "DIAG_OVERLAY off",
+        "reject": [" evdev=32 pressed=", "DIAG_OVERLAY off fps=0 "],
+        "seconds": 25
+      },
+      "gtk-scroll": {
+        "exec": "libnative_gtk_demo.so",
+        "entry": "OhosWaylandGtkDemoMain",
+        "env": [
+          "GTK_DEMO_SCROLL=1"
+        ],
+        "expect": "GTK_SCROLL start"
+      },
+      "gtk-scroll-replay": {
+        "exec": "libnative_gtk_demo.so",
+        "entry": "OhosWaylandGtkDemoMain",
+        "env": [
+          "G_DBUS_DEBUG=signal,return,emission",
+          "GTK_DEMO_SCROLL=1"
+        ],
+        "expect": "INPUT_REPLAY done",
+        "seconds": 25,
+        "replay": "${FILES}/fixtures/touchpad-swipe.tsv"
+      },
+      "clipboard-copy": {
+        "exec": "libnative_gtk_demo.so",
+        "entry": "OhosWaylandGtkDemoMain",
+        "env": [
+          "GTK_DEMO_CLIPBOARD=copy:ohos-wl-clipboard-probe"
+        ],
+        "expect": "[Clipboard] wrote pasteboard result=0 bytes=23"
+      },
+      "clipboard-paste": {
+        "exec": "libnative_gtk_demo.so",
+        "entry": "OhosWaylandGtkDemoMain",
+        "env": [
+          "GTK_DEMO_CLIPBOARD=paste"
+        ],
+        "expect": "GTK_CLIPBOARD pasted=ohos-wl-clipboard-probe",
+        "seconds": 30
+      },
+      "drop-text": {
+        "exec": "libnative_gtk_demo.so",
+        "entry": "OhosWaylandGtkDemoMain",
+        "env": [
+          "GTK_DEMO_DROP=1"
+        ],
+        "replay": "${FILES}/fixtures/drop-text.tsv",
+        "expect": "GTK_DROP text=ohos-wl-drop-probe",
+        "seconds": 20
+      },
+      "gtk-theme": {
+        "exec": "libnative_gtk_demo.so",
+        "entry": "OhosWaylandGtkDemoMain",
+        "env": ["GTK_DEMO_THEME=1"],
+        "maximize": true,
+        "edges": true,
+        "expect": "GTK_THEME",
+        "seconds": 20
+      },
+      "shm-theme": {
+        "exec": "libnative_demo.so",
+        "entry": "OhosWaylandDemoMain",
+        "env": ["DEMO_THEME=1"],
+        "gpu": false,
+        "maximize": true,
+        "replay": "${FILES}/fixtures/shm-theme.tsv",
+        "edges": true,
+        "expect": "key pressed evdev=30",
+        "seconds": 20
+      },
+      "edge-click": {
+        "exec": "libnative_demo.so",
+        "entry": "OhosWaylandDemoMain",
+        "gpu": false,
+        "maximize": true,
+        "replay": "${FILES}/fixtures/edge-click.tsv",
+        "expect": "DEMO_BUTTON x=0 y=0",
+        "seconds": 15
+      },
+      "fallback-bar": {
+        "exec": "libnative_gl_demo.so",
+        "entry": "OhosWaylandGlDemoMain",
+        "maximize": true,
+        "expect": "bar=true",
+        "seconds": 15
+      },
+      "gtk-bar": {
+        "exec": "libnative_gtk_demo.so",
+        "entry": "OhosWaylandGtkDemoMain",
+        "maximize": true,
+        "expect": "bar=true",
+        "seconds": 15
+      },
+      "fallback-hover": {
+        "exec": "libnative_gl_demo.so",
+        "entry": "OhosWaylandGlDemoMain",
+        "maximize": true,
+        "titlebarMode": "hover",
+        "replay": "${FILES}/fixtures/titlebar-hover.tsv",
+        "expect": "TITLEBAR_HOVER shown=false",
+        "seconds": 15
+      },
+      "gtk-hover": {
+        "exec": "libnative_gtk_demo.so",
+        "entry": "OhosWaylandGtkDemoMain",
+        "maximize": true,
+        "titlebarMode": "hover",
+        "replay": "${FILES}/fixtures/titlebar-hover.tsv",
+        "expect": "TITLEBAR_HOVER shown=false",
+        "seconds": 15
+      },
+      "hover-probe": {
+        "exec": "hnp:hover-probe",
+        "args": ["1600", "0", "4000"],
+        "foreground": true,
+        "manual": true,
+        "expect": "HOVER_INJECT x=1600 y=0 result=0",
+        "seconds": 25
+      },
+      "user-dirs": {
+        "exec": "hnp:sh",
+        "args": [
+          "-c",
+          "cat $HOME/.config/user-dirs.dirs; echo USERDIR env $OHOS_USER_FOLDERS; printf '%s' \"$OHOS_USER_FOLDERS\" | tr ';' '\\n' | while IFS='=' read -r name path; do if [ \"$name\" = documents ]; then echo USERDIR documents; ls \"$path\" 2>&1 | head -3; echo USERDIR documents again; ls \"$path\" 2>&1 | head -3; fi; done; echo USERDIR_DONE"
+        ],
+        "gpu": false,
+        "expect": "USERDIR_DONE",
+        "seconds": 90
+      }
+    }
+  },
+  "data": {
+    "fixtures": "fixtures"
+  }
+}

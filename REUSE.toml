@@ -1,0 +1,62 @@
+# Licences by path (https://reuse.software). When several annotations match a
+# file, the last one wins, so specific paths follow general ones.
+version = 1
+
+# Everything ohos-wayland wrote: the packager, tools, bottles, docs.
+[[annotations]]
+path = "**"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 ohos-wayland contributors"
+SPDX-License-Identifier = "MIT"
+
+# The runtime HAP derives from WineHua (github.com/winehua/WineHua), whose
+# LICENSE is LGPL-2.1 with no version notice in its files; it is treated as
+# 2.1-only (docs/public-release-plan.md, open decision 3).
+[[annotations]]
+path = ["app/entry/**", "app/AppScope/**", "app/hvigor/**", "app/*.json5", "app/hvigorfile.ts", "app/oh-package*.json5"]
+precedence = "aggregate"
+SPDX-FileCopyrightText = ["WineHua contributors", "2026 ohos-wayland contributors"]
+SPDX-License-Identifier = "LGPL-2.1-only"
+
+# New in ohos-wayland inside the runtime: the stock-program exec and present
+# layer, the native title bar protocol and GTK bridge.
+[[annotations]]
+path = [
+  "app/entry/src/main/cpp/runtime/exec_preload.cpp",
+  "app/entry/src/main/cpp/runtime/remote_wsi_*",
+  "app/entry/src/main/cpp/runtime/sandbox_syscalls.h",
+  "app/entry/src/main/cpp/runtime/libgl_alias.c",
+  "app/entry/src/main/cpp/runtime/gtk_titlebar_bridge.cpp",
+  "app/entry/src/main/cpp/protocols/ohos-titlebar-v1-*",
+  "app/protocols/**",
+]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 ohos-wayland contributors"
+SPDX-License-Identifier = "MIT"
+
+# Generated Wayland protocol code and the libwayland headers keep their
+# upstream licence.
+[[annotations]]
+path = ["app/entry/src/main/cpp/protocols/wayland-*", "app/entry/src/main/cpp/protocols/xdg-*", "app/entry/src/main/cpp/protocols/viewporter-*", "app/entry/src/main/cpp/protocols/pointer-*", "app/entry/src/main/cpp/protocols/relative-pointer-*", "app/entry/src/main/cpp/protocols/text-input-*"]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "Wayland and wayland-protocols contributors"
+SPDX-License-Identifier = "MIT"
+
+# Patch series keep their upstream's licence.
+[[annotations]]
+path = "patches/mesa/**"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "Mesa contributors"
+SPDX-License-Identifier = "MIT"
+
+[[annotations]]
+path = "patches/libepoxy/**"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "libepoxy contributors"
+SPDX-License-Identifier = "MIT"
+
+[[annotations]]
+path = ["patches/gtk/**", "patches/libadwaita/**"]
+precedence = "aggregate"
+SPDX-FileCopyrightText = ["GTK contributors", "libadwaita contributors"]
+SPDX-License-Identifier = "LGPL-2.1-or-later"

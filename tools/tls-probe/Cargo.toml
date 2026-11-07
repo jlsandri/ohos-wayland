@@ -1,0 +1,11 @@
+[package]
+name = "tls-probe"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "tls-probe"
+path = "main.rs"
+
+[profile.release]
+panic = "abort"

@@ -1,0 +1,29 @@
+ohos-wayland
+Copyright 2026 ohos-wayland contributors
+
+Licences by path are in REUSE.toml, with the texts in LICENSES/.
+
+This project builds on the work of others:
+
+- WineHua (https://github.com/winehua/WineHua), LGPL-2.1. The runtime's
+  Wayland compositor, input, and frame code started from WineHua's
+  entry/src/main/cpp, by hackeris and contributors.
+- Mesa (https://mesa3d.org), MIT, through WineHua's mesa-ohos fork
+  (https://github.com/winehua/mesa-ohos). Our changes are in patches/mesa.
+- GTK and libadwaita (https://gitlab.gnome.org/GNOME), LGPL-2.1-or-later.
+  Our changes are in patches/gtk and patches/libadwaita.
+- Wayland, wayland-protocols, libdrm, libepoxy, libffi, and gtk4-layer-shell,
+  MIT. sources.tsv pins each. Our libepoxy change is in patches/libepoxy.
+- OpenHarmony developtools_hapsigner's hap-sign-tool.jar, Apache-2.0, which
+  ohos_wl.py downloads at a pinned hash to sign HAPs with a native package.
+- OpenHarmony startup_appspawn, Apache-2.0: the native package (HNP) format
+  ohos_wl.py writes follows its hnp_pack.c.
+- Termony (https://github.com/TermonyHQ/Termony), MIT: the scheme
+  deveco_password.js uses to read DevEco Studio's stored signing passwords
+  follows its sign.js, and its private-HNP terminal showed the exec route.
+- Qt Creator's HarmonyOS packaging (scripts/harmonyos/build_hap.py) showed
+  how to add a native package to a HAP after hvigor builds it.
+
+Apps are not part of this repository's code. A bottle names prebuilt
+packages, such as Alpine Linux's, which `ohos_wl.py bottle` downloads; each
+keeps its own licence, recorded in the bottle's sources.json.

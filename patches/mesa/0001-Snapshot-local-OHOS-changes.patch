@@ -1,0 +1,286 @@
+From 176cff76c844b8a16d6f6026e95cc26b77803eca Mon Sep 17 00:00:00 2001
+From: Device Exploration <device-exploration@localhost>
+Date: Tue, 27 Oct 2026 20:32:05 +0800
+Subject: [PATCH 1/5] Snapshot local OHOS changes
+
+---
+ src/egl/drivers/dri2/platform_ohos.c    | 18 ++---
+ src/egl/drivers/dri2/platform_wayland.c |  1 +
+ src/egl/meson.build                     |  2 +-
+ src/gallium/drivers/zink/zink_kopper.c  | 88 ++++++++++++++++++++++++-
+ src/gallium/drivers/zink/zink_kopper.h  |  4 ++
+ src/gallium/drivers/zink/zink_screen.c  | 20 ++++--
+ src/mapi/glapi/glapi_getproc.c          |  5 ++
+ 7 files changed, 123 insertions(+), 15 deletions(-)
+
+diff --git a/src/egl/drivers/dri2/platform_ohos.c b/src/egl/drivers/dri2/platform_ohos.c
+index a80db407..359b340c 100644
+--- a/src/egl/drivers/dri2/platform_ohos.c
++++ b/src/egl/drivers/dri2/platform_ohos.c
+@@ -9,8 +9,8 @@
+ #include "egl_dri2.h"
+ #include "kopper_interface.h"
+ 
+-#include "display_type.h"
+-#include "external_window.h"
++#include <native_buffer/native_buffer.h>
++#include <native_window/external_window.h>
+ 
+ static _EGLSurface *
+ ohos_create_surface(_EGLDisplay *disp, EGLint type, _EGLConfig *conf,
+@@ -240,20 +240,20 @@ ohos_add_configs_for_visuals(_EGLDisplay *disp)
+       int hal_format;
+       enum pipe_format pipe_format;
+    } visuals[] = {
+-      {PIXEL_FMT_RGBA_8888, PIPE_FORMAT_RGBA8888_UNORM},
+-      {PIXEL_FMT_RGBX_8888, PIPE_FORMAT_BGRX8888_UNORM},
+-      {PIXEL_FMT_RGB_565, PIPE_FORMAT_B5G6R5_UNORM},
+-      /* This must be after HAL_PIXEL_FMT_RGBA_8888, we only keep BGRA
++      {NATIVEBUFFER_PIXEL_FMT_RGBA_8888, PIPE_FORMAT_RGBA8888_UNORM},
++      {NATIVEBUFFER_PIXEL_FMT_RGBX_8888, PIPE_FORMAT_BGRX8888_UNORM},
++      {NATIVEBUFFER_PIXEL_FMT_RGB_565, PIPE_FORMAT_B5G6R5_UNORM},
++      /* This must be after NATIVEBUFFER_PIXEL_FMT_RGBA_8888, we only keep BGRA
+        * visual if it turns out RGBA visual is not available.
+        */
+-      {PIXEL_FMT_BGRA_8888, PIPE_FORMAT_BGRA8888_UNORM},
++      {NATIVEBUFFER_PIXEL_FMT_BGRA_8888, PIPE_FORMAT_BGRA8888_UNORM},
+    };
+ 
+    unsigned int format_count[ARRAY_SIZE(visuals)] = {0};
+ 
+    bool has_rgba = false;
+    for (int i = 0; i < ARRAY_SIZE(visuals); i++) {
+-      if (visuals[i].hal_format == PIXEL_FMT_BGRA_8888 && has_rgba)
++      if (visuals[i].hal_format == NATIVEBUFFER_PIXEL_FMT_BGRA_8888 && has_rgba)
+          continue;
+       for (int j = 0; dri2_dpy->driver_configs[j]; j++) {
+          const struct gl_config *gl_config =
+@@ -280,7 +280,7 @@ ohos_add_configs_for_visuals(_EGLDisplay *disp)
+             format_count[i]++;
+       }
+ 
+-      if (visuals[i].hal_format == PIXEL_FMT_RGBA_8888 && format_count[i])
++      if (visuals[i].hal_format == NATIVEBUFFER_PIXEL_FMT_RGBA_8888 && format_count[i])
+          has_rgba = true;
+    }
+ 
+diff --git a/src/egl/drivers/dri2/platform_wayland.c b/src/egl/drivers/dri2/platform_wayland.c
+index 5e4954b4..eb2b6d72 100644
+--- a/src/egl/drivers/dri2/platform_wayland.c
++++ b/src/egl/drivers/dri2/platform_wayland.c
+@@ -1656,6 +1656,7 @@ dri2_wl_swap_buffers_with_damage(_EGLDisplay *disp, _EGLSurface *draw,
+                                  const EGLint *rects, EGLint n_rects)
+ {
+    struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
++   fprintf(stderr, "WineHua EGL swap standard kopper=%d\n", dri2_dpy->kopper != NULL);
+    struct dri2_egl_surface *dri2_surf = dri2_egl_surface(draw);
+ 
+    if (!dri2_surf->wl_win)
+diff --git a/src/egl/meson.build b/src/egl/meson.build
+index e3b1526a..eba5b706 100644
+--- a/src/egl/meson.build
++++ b/src/egl/meson.build
+@@ -124,7 +124,7 @@ if with_dri
+     files_egl += files('drivers/dri2/platform_android.c')
+   endif
+   if with_platform_ohos
+-    deps_for_egl += [dependency('libsurface')]
++    deps_for_egl += [cc.find_library('native_window')]
+     files_egl += files('drivers/dri2/platform_ohos.c')
+   endif
+ elif with_platform_haiku
+diff --git a/src/gallium/drivers/zink/zink_kopper.c b/src/gallium/drivers/zink/zink_kopper.c
+index 5fa43f4c..ee43d932 100644
+--- a/src/gallium/drivers/zink/zink_kopper.c
++++ b/src/gallium/drivers/zink/zink_kopper.c
+@@ -30,6 +30,84 @@
+ #include "zink_resource.h"
+ #include "zink_kopper.h"
+ 
++#include <dlfcn.h>
++#include <fcntl.h>
++#include <sys/mman.h>
++#include <unistd.h>
++
++typedef int (*WinehuaPresentFn)(VkQueue, VkImage, uint32_t, uint32_t, VkFormat,
++                                VkImageLayout, uint32_t, uint32_t, uint32_t, uint64_t *);
++
++static uint32_t
++winehua_surface_id(void)
++{
++   struct page {
++      uint32_t magic;
++      uint32_t version;
++      uint32_t surface_id;
++      uint32_t reserved;
++   };
++   const char *tmp_dir = getenv("TMPDIR");
++   static bool loggedEnv, loggedPage;
++   if (!loggedEnv) {
++      fprintf(stderr, "WineHua surface lookup tmp=%s present=%s\n",
++              tmp_dir ? tmp_dir : "(null)", getenv("WINEHUA_VTEST_PRESENT"));
++      loggedEnv = true;
++   }
++   if (!tmp_dir || !tmp_dir[0] || !getenv("WINEHUA_VTEST_PRESENT"))
++      return 0;
++   char path[256];
++   if (snprintf(path, sizeof(path), "%s/winehua_present_surface_%u.shm",
++                tmp_dir, (uint32_t)getpid()) >= sizeof(path))
++      return 0;
++   int fd = open(path, O_RDONLY | O_CLOEXEC);
++   if (fd < 0) {
++      if (!loggedPage) {
++         fprintf(stderr, "WineHua surface open failed path=%s errno=%d\n", path, errno);
++         loggedPage = true;
++      }
++      return 0;
++   }
++   struct page *page = mmap(NULL, sizeof(*page), PROT_READ, MAP_SHARED, fd, 0);
++   close(fd);
++   if (page == MAP_FAILED)
++      return 0;
++   const uint32_t id = page->magic == 0x57535053u && page->version == 1
++      ? page->surface_id : 0;
++   if (!loggedPage) {
++      fprintf(stderr, "WineHua surface page path=%s magic=%x version=%u id=%u\n",
++              path, page->magic, page->version, id);
++      loggedPage = true;
++   }
++   munmap(page, sizeof(*page));
++   return id;
++}
++
++bool
++zink_winehua_present(struct zink_screen *screen, VkImage image,
++                     uint32_t width, uint32_t height, VkFormat format,
++                     VkImageLayout layout, VkResult *result)
++{
++   const uint32_t surfaceId = winehua_surface_id();
++   if (!surfaceId)
++      return false;
++
++   static uint32_t serial;
++   uint64_t nextDeadline = 0;
++   void *icd = dlopen("libvulkan_virtio.so", RTLD_NOW | RTLD_LOCAL | RTLD_NOLOAD);
++   WinehuaPresentFn present = icd
++      ? (WinehuaPresentFn)dlsym(icd, "vn_winehua_present") : NULL;
++   const int presentResult = present
++      ? present(screen->queue, image, width, height, format, layout,
++                (uint32_t)getpid(), surfaceId, ++serial, &nextDeadline)
++      : -1;
++   if (serial <= 10 || serial % 120 == 0 || presentResult != 0)
++      fprintf(stderr, "WineHua direct present serial=%u result=%d image=%p format=%d layout=%d size=%ux%u\n",
++              serial, presentResult, (void *)image, format, layout, width, height);
++   *result = presentResult == 0 ? VK_SUCCESS : VK_ERROR_DEVICE_LOST;
++   return true;
++}
++
+ #define SWAP_BUFFER_COUNT 5
+ 
+ static void
+@@ -750,6 +828,7 @@ zink_kopper_present(struct zink_screen *screen, struct zink_resource *res)
+ static void
+ kopper_present(void *data, void *gdata, int thread_idx)
+ {
++   fprintf(stderr, "WineHua kopper present entry thread=%d\n", thread_idx);
+    struct zink_kopper_present_info *cpi = data;
+    struct kopper_displaytarget *cdt = cpi->res->obj->dt;
+    struct kopper_swapchain *swapchain = cpi->swapchain;
+@@ -787,7 +866,13 @@ kopper_present(void *data, void *gdata, int thread_idx)
+       cpi->info.pWaitSemaphores = NULL;
+       cpi->info.waitSemaphoreCount = 0;
+    }
+-   VkResult error2 = VKSCR(QueuePresentKHR)(screen->queue, &cpi->info);
++   VkResult error2;
++   if (!zink_winehua_present(screen, swapchain->images[cpi->image].image,
++                             swapchain->scci.imageExtent.width,
++                             swapchain->scci.imageExtent.height,
++                             swapchain->scci.imageFormat,
++                             VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, &error2))
++      error2 = VKSCR(QueuePresentKHR)(screen->queue, &cpi->info);
+    zink_screen_debug_marker_end(screen, screen->frame_marker_emitted);
+    zink_screen_debug_marker_begin(screen, "frame");
+    simple_mtx_unlock(&screen->queue_lock);
+@@ -851,6 +936,7 @@ out:
+ void
+ zink_kopper_present_queue(struct zink_screen *screen, struct zink_resource *res, unsigned nrects, struct pipe_box *boxes)
+ {
++   fprintf(stderr, "WineHua kopper present queue entry\n");
+    assert(res->obj->dt);
+    struct kopper_displaytarget *cdt = res->obj->dt;
+    assert(zink_kopper_acquired(res->obj->dt, res->obj->dt_idx));
+diff --git a/src/gallium/drivers/zink/zink_kopper.h b/src/gallium/drivers/zink/zink_kopper.h
+index 9fcf01ab..3f3dcfd4 100644
+--- a/src/gallium/drivers/zink/zink_kopper.h
++++ b/src/gallium/drivers/zink/zink_kopper.h
+@@ -165,6 +165,10 @@ zink_kopper_present(struct zink_screen *screen, struct zink_resource *res);
+ void
+ zink_kopper_present_queue(struct zink_screen *screen, struct zink_resource *res, unsigned nrects, struct pipe_box *boxes);
+ bool
++zink_winehua_present(struct zink_screen *screen, VkImage image,
++                     uint32_t width, uint32_t height, VkFormat format,
++                     VkImageLayout layout, VkResult *result);
++bool
+ zink_kopper_acquire_readback(struct zink_context *ctx, struct zink_resource *res, struct zink_resource **readback);
+ bool
+ zink_kopper_present_readback(struct zink_context *ctx, struct zink_resource *res);
+diff --git a/src/gallium/drivers/zink/zink_screen.c b/src/gallium/drivers/zink/zink_screen.c
+index 274908d5..245fca13 100644
+--- a/src/gallium/drivers/zink/zink_screen.c
++++ b/src/gallium/drivers/zink/zink_screen.c
+@@ -1813,9 +1813,17 @@ zink_flush_frontbuffer(struct pipe_screen *pscreen,
+    struct zink_resource *res = zink_resource(pres);
+    struct zink_context *ctx = zink_context(pctx);
+ 
+-   /* if the surface is no longer a swapchain, this is a no-op */
+-   if (!zink_is_swapchain(res))
++   fprintf(stderr, "WineHua Zink flush front swapchain=%d\n", zink_is_swapchain(res));
++
++   if (!zink_is_swapchain(res)) {
++      VkResult result;
++      pctx->flush(pctx, NULL, PIPE_FLUSH_END_OF_FRAME);
++      simple_mtx_lock(&screen->queue_lock);
++      zink_winehua_present(screen, res->obj->image, res->base.b.width0,
++                           res->base.b.height0, res->format, res->layout, &result);
++      simple_mtx_unlock(&screen->queue_lock);
+       return;
++   }
+ 
+    ctx = zink_tc_context_unwrap(pctx);
+ 
+@@ -3305,10 +3313,14 @@ zink_internal_create_screen(const struct pipe_screen_config *config, int64_t dev
+ 
+    u_trace_state_init();
+ 
+-   screen->loader_lib = util_dl_open(VK_LIBNAME);
++   /* OHOS WSI lives in the system loader's VK_LAYER_OHOS_surface, so the
++    * direct path must be able to pick the system loader over the bundled one.
++    */
++   const char *vk_libname = debug_get_option("ZINK_VULKAN_LIBRARY", VK_LIBNAME);
++   screen->loader_lib = util_dl_open(vk_libname);
+    if (!screen->loader_lib) {
+       if (!screen->driver_name_is_inferred)
+-         mesa_loge("ZINK: failed to load "VK_LIBNAME);
++         mesa_loge("ZINK: failed to load %s", vk_libname);
+       goto fail;
+    }
+ 
+diff --git a/src/mapi/glapi/glapi_getproc.c b/src/mapi/glapi/glapi_getproc.c
+index 649a6050..ad8d12bc 100644
+--- a/src/mapi/glapi/glapi_getproc.c
++++ b/src/mapi/glapi/glapi_getproc.c
+@@ -135,6 +135,11 @@ _mesa_glapi_get_proc_address(const char *funcName)
+ #elif defined(DISPATCH_FUNCTION_SIZE)
+    return get_entrypoint_address(f->Offset);
+ #else
++   if (f->Address == NULL) {
++      struct _glapi_table *dispatch = GET_DISPATCH();
++      if (dispatch != NULL)
++         return ((_glapi_proc *)dispatch)[f->Offset];
++   }
+    return f->Address;
+ #endif
+ }
+-- 
+2.43.0
+

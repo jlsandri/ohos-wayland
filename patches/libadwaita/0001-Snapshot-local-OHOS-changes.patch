@@ -1,0 +1,23 @@
+From 860d42c628d198c83aadbfcb1e23e017719521d6 Mon Sep 17 00:00:00 2001
+From: Device Exploration <device-exploration@localhost>
+Date: Tue, 27 Oct 2026 20:32:06 +0800
+Subject: [PATCH] Snapshot local OHOS changes
+
+---
+ subprojects/appstream.wrap | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/subprojects/appstream.wrap b/subprojects/appstream.wrap
+index 4262a04..5b53842 100644
+--- a/subprojects/appstream.wrap
++++ b/subprojects/appstream.wrap
+@@ -1,5 +1,5 @@
+ [wrap-git]
+ directory = appstream
+ url = https://github.com/ximion/appstream.git
+-revision = main
++revision = v1.2.1
+ depth = 1
+-- 
+2.43.0
+

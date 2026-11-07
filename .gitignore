@@ -1,0 +1,17 @@
+# Build outputs and fetched toolchains; the repository holds sources only.
+/build/
+/app/build/
+# GTK, Mesa, and their build trees. hvigor cleans app/build before each build.
+/app/native-build/
+/app/.hvigor/
+/app/entry/build/
+/app/entry/.cxx/
+/app/entry/libs/
+/app/entry/oh_modules/
+/tools/zig-0.15.2/
+/tools/*/build/
+/tools/tls-probe/target/
+/upstream/
+/thirdparty/
+/.scratch/
+__pycache__/

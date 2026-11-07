@@ -1,0 +1,261 @@
+From d50b777aa0dff87a752d00bf271adba1cf248104 Mon Sep 17 00:00:00 2001
+From: Device Exploration <device-exploration@localhost>
+Date: Tue, 27 Oct 2026 22:23:18 +0800
+Subject: [PATCH 2/5] egl/wayland: present Kopper surfaces through OHOS native
+ windows
+
+With OHOS_WAYLAND_DIRECT_WINDOW set, a Wayland EGL window surface asks
+the process host (libohos_direct_child.so) for the OHNativeWindow the
+compositor attached to its wl_surface and gives Kopper a
+VkSurfaceCreateInfoOHOS instead of a Wayland surface. OHOS has no
+Vulkan Wayland WSI and no DRM node, so in this mode Zink skips the DRM
+requirements, uses the software EGLDevice, and commits the wl_surface
+after each swap to deliver frame callbacks.
+
+Keep libdrm when the Wayland platform is built next to OHOS, guard the
+server-side bind_wayland_display code on libdrm, and fail cleanly when
+a Kopper surface entry point was not loaded.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ meson.build                             |  5 +-
+ src/egl/drivers/dri2/egl_dri2.c         |  4 +-
+ src/egl/drivers/dri2/egl_dri2.h         |  1 +
+ src/egl/drivers/dri2/platform_wayland.c | 90 ++++++++++++++++++++++++-
+ src/gallium/drivers/zink/zink_kopper.c  |  8 +++
+ 5 files changed, 103 insertions(+), 5 deletions(-)
+ mode change 100644 => 100755 meson.build
+ mode change 100644 => 100755 src/egl/drivers/dri2/egl_dri2.c
+ mode change 100644 => 100755 src/egl/drivers/dri2/egl_dri2.h
+ mode change 100644 => 100755 src/egl/drivers/dri2/platform_wayland.c
+ mode change 100644 => 100755 src/gallium/drivers/zink/zink_kopper.c
+
+diff --git a/meson.build b/meson.build
+old mode 100644
+new mode 100755
+index 8fe0ea9d..3200878e
+--- a/meson.build
++++ b/meson.build
+@@ -425,7 +425,10 @@ with_platform_ohos = _platforms.contains('ohos')
+ 
+ if with_platform_ohos
+   pre_args += '-DVK_USE_PLATFORM_OHOS=1'
+-  system_has_kms_drm = false
++  # The Wayland platform still needs libdrm for its buffer paths.
++  if not with_platform_wayland
++    system_has_kms_drm = false
++  endif
+ endif
+ 
+ with_glx = get_option('glx')
+diff --git a/src/egl/drivers/dri2/egl_dri2.c b/src/egl/drivers/dri2/egl_dri2.c
+old mode 100644
+new mode 100755
+index b2702e70..bab67d3f
+--- a/src/egl/drivers/dri2/egl_dri2.c
++++ b/src/egl/drivers/dri2/egl_dri2.c
+@@ -2858,7 +2858,7 @@ dri2_destroy_image_khr(_EGLDisplay *disp, _EGLImage *image)
+    return EGL_TRUE;
+ }
+ 
+-#ifdef HAVE_WAYLAND_PLATFORM
++#if defined(HAVE_WAYLAND_PLATFORM) && defined(HAVE_LIBDRM)
+ 
+ static void
+ dri2_wl_reference_buffer(void *user_data, uint32_t name, int fd,
+@@ -3414,7 +3414,7 @@ const _EGLDriver _eglDriver = {
+    .QueryDmaBufFormatsEXT = dri2_query_dma_buf_formats,
+    .QueryDmaBufModifiersEXT = dri2_query_dma_buf_modifiers,
+ #endif
+-#ifdef HAVE_WAYLAND_PLATFORM
++#if defined(HAVE_WAYLAND_PLATFORM) && defined(HAVE_LIBDRM)
+    .BindWaylandDisplayWL = dri2_bind_wayland_display_wl,
+    .UnbindWaylandDisplayWL = dri2_unbind_wayland_display_wl,
+    .QueryWaylandBufferWL = dri2_query_wayland_buffer_wl,
+diff --git a/src/egl/drivers/dri2/egl_dri2.h b/src/egl/drivers/dri2/egl_dri2.h
+old mode 100644
+new mode 100755
+index 13fc7b08..40e56ac2
+--- a/src/egl/drivers/dri2/egl_dri2.h
++++ b/src/egl/drivers/dri2/egl_dri2.h
+@@ -402,6 +402,7 @@ struct dri2_egl_surface {
+ 
+    /* swrast device */
+    char *swrast_device_buffer;
++   bool ohos_direct;
+ };
+ 
+ struct dri2_egl_config {
+diff --git a/src/egl/drivers/dri2/platform_wayland.c b/src/egl/drivers/dri2/platform_wayland.c
+old mode 100644
+new mode 100755
+index eb2b6d72..d6882216
+--- a/src/egl/drivers/dri2/platform_wayland.c
++++ b/src/egl/drivers/dri2/platform_wayland.c
+@@ -40,6 +40,12 @@
+ #include <sys/mman.h>
+ #include <vulkan/vulkan_core.h>
+ #include <vulkan/vulkan_wayland.h>
++#ifdef VK_USE_PLATFORM_OHOS
++#include <dlfcn.h>
++#include <vulkan/vulkan_ohos.h>
++#include <native_buffer/native_buffer.h>
++#include <native_window/external_window.h>
++#endif
+ 
+ #include "util/anon_file.h"
+ #include "util/u_vector.h"
+@@ -2719,6 +2725,14 @@ dri2_wl_kopper_swap_buffers_with_damage(_EGLDisplay *disp, _EGLSurface *draw,
+    dri2_surf->current = dri2_surf->back;
+    dri2_surf->back = NULL;
+ 
++   /* Vulkan WSI normally commits the wl_surface. The OHOS swapchain does not,
++    * so commit here to deliver the frame callback and pending surface state.
++    */
++   if (dri2_surf->ohos_direct) {
++      wl_surface_commit(dri2_surf->wl_surface_wrapper);
++      wl_display_flush(dri2_dpy->wl_dpy);
++   }
++
+    return EGL_TRUE;
+ }
+ 
+@@ -2919,6 +2933,44 @@ static_assert(sizeof(struct kopper_vk_surface_create_storage) >=
+                  sizeof(VkWaylandSurfaceCreateInfoKHR),
+               "");
+ 
++#ifdef VK_USE_PLATFORM_OHOS
++static_assert(sizeof(struct kopper_vk_surface_create_storage) >=
++                 sizeof(VkSurfaceCreateInfoOHOS),
++              "");
++
++/* OHOS has no Vulkan Wayland WSI. When OHOS_WAYLAND_DIRECT_WINDOW is set, the
++ * compositor hands this process an OHNativeWindow for each toplevel
++ * wl_surface. Kopper presents into it through VK_OHOS_surface, and the
++ * wl_surface only carries roles, input, and frame callbacks.
++ */
++static bool
++ohos_direct_window_enabled(void)
++{
++   static int enabled = -1;
++   if (enabled < 0)
++      enabled = getenv("OHOS_WAYLAND_DIRECT_WINDOW") != NULL;
++   return enabled;
++}
++
++static OHNativeWindow *
++ohos_direct_window_acquire(struct wl_surface *surface)
++{
++   typedef OHNativeWindow *(*AcquireFn)(uint64_t key, int32_t timeout_ms);
++   static AcquireFn acquire;
++   if (!acquire) {
++      /* The NCP loader may open the host library locally, so look it up by
++       * name before falling back to the global scope. */
++      void *host = dlopen("libohos_direct_child.so", RTLD_NOW | RTLD_NOLOAD);
++      acquire = (AcquireFn)dlsym(host ? host : RTLD_DEFAULT, "OhosDirectWindowAcquire");
++   }
++   if (!acquire || !surface)
++      return NULL;
++   const uint64_t key = ((uint64_t)getpid() << 32) |
++                        wl_proxy_get_id((struct wl_proxy *)surface);
++   return acquire(key, 5000);
++}
++#endif
++
+ static void
+ kopperSetSurfaceCreateInfo(void *_draw, struct kopper_loader_info *out)
+ {
+@@ -2939,6 +2991,30 @@ kopperSetSurfaceCreateInfo(void *_draw, struct kopper_loader_info *out)
+     * queues and proxy wrappers.
+     */
+    wlsci->surface = get_wl_surface(dri2_surf->base.NativeSurface);
++#ifdef VK_USE_PLATFORM_OHOS
++   fprintf(stderr, "OHOS_KOPPER_CREATE_INFO direct=%d surface=%u\n", ohos_direct_window_enabled(),
++           wl_proxy_get_id((struct wl_proxy *)wlsci->surface));
++   if (ohos_direct_window_enabled()) {
++      OHNativeWindow *window = ohos_direct_window_acquire(wlsci->surface);
++      if (window) {
++         OH_NativeWindow_NativeWindowHandleOpt(window, SET_BUFFER_GEOMETRY,
++                                               dri2_surf->base.Width,
++                                               dri2_surf->base.Height);
++         VkSurfaceCreateInfoOHOS *sci = (VkSurfaceCreateInfoOHOS *)&out->bos;
++         sci->sType = VK_STRUCTURE_TYPE_SURFACE_CREATE_INFO_OHOS;
++         sci->pNext = NULL;
++         sci->flags = 0;
++         sci->window = window;
++         dri2_surf->ohos_direct = true;
++         fprintf(stderr, "OHOS_DIRECT_WINDOW surface=%u window=%p size=%dx%d\n",
++                 wl_proxy_get_id((struct wl_proxy *)wlsci->surface), (void *)window,
++                 dri2_surf->base.Width, dri2_surf->base.Height);
++      } else {
++         _eglLog(_EGL_WARNING, "OHOS direct window missing for wl_surface %u",
++                 wl_proxy_get_id((struct wl_proxy *)wlsci->surface));
++      }
++   }
++#endif
+    out->present_opaque = dri2_surf->base.PresentOpaque;
+    /* convert to vulkan constants */
+    switch (dri2_surf->base.CompressionRate) {
+@@ -3034,7 +3110,13 @@ dri2_initialize_wayland_swrast(_EGLDisplay *disp)
+                           dri2_dpy->formats.num_formats))
+       goto cleanup;
+ 
+-   if (disp->Options.Zink) {
++   /* OHOS direct windows present through VK_OHOS_surface, so Zink needs no
++    * wl_drm, dmabuf, or DRM render node here. */
++   bool ohos_direct = false;
++#ifdef VK_USE_PLATFORM_OHOS
++   ohos_direct = ohos_direct_window_enabled();
++#endif
++   if (disp->Options.Zink && !ohos_direct) {
+       if (!dri2_initialize_wayland_drm_extensions(dri2_dpy) && !disp->Options.ForceSoftware)
+          goto cleanup;
+ 
+@@ -3067,11 +3149,15 @@ dri2_initialize_wayland_swrast(_EGLDisplay *disp)
+       goto cleanup;
+ 
+    dri2_dpy->loader_extensions = disp->Options.Zink ? kopper_swrast_loader_extensions : swrast_loader_extensions;
++   fprintf(stderr, "OHOS_WL_EGL_INIT zink=%d kopper=%d software=%d\n", disp->Options.Zink,
++           dri2_dpy->kopper != NULL, disp->Options.ForceSoftware);
+ 
+    if (!dri2_create_screen(disp))
+       goto cleanup;
+ 
+-   if (!dri2_setup_device(disp, disp->Options.ForceSoftware)) {
++   /* Without a DRM fd (OHOS direct windows) only the software EGLDevice fits. */
++   if (!dri2_setup_device(disp, disp->Options.ForceSoftware ||
++                                   dri2_dpy->fd_render_gpu < 0)) {
+       _eglError(EGL_NOT_INITIALIZED, "DRI2: failed to setup EGLDevice");
+       goto cleanup;
+    }
+diff --git a/src/gallium/drivers/zink/zink_kopper.c b/src/gallium/drivers/zink/zink_kopper.c
+old mode 100644
+new mode 100755
+index ee43d932..6038b280
+--- a/src/gallium/drivers/zink/zink_kopper.c
++++ b/src/gallium/drivers/zink/zink_kopper.c
+@@ -183,6 +183,10 @@ kopper_CreateSurface(struct zink_screen *screen, struct kopper_displaytarget *cd
+ #ifdef VK_USE_PLATFORM_WAYLAND_KHR
+    case VK_STRUCTURE_TYPE_WAYLAND_SURFACE_CREATE_INFO_KHR: {
+       VkWaylandSurfaceCreateInfoKHR *wlsci = (VkWaylandSurfaceCreateInfoKHR *)&cdt->info.bos;
++      if (!VKSCR(CreateWaylandSurfaceKHR)) {
++         mesa_loge("ZINK: VK_KHR_wayland_surface is not available");
++         return VK_NULL_HANDLE;
++      }
+       error = VKSCR(CreateWaylandSurfaceKHR)(screen->instance, wlsci, NULL, &surface);
+       break;
+    }
+@@ -197,6 +201,10 @@ kopper_CreateSurface(struct zink_screen *screen, struct kopper_displaytarget *cd
+ #ifdef VK_USE_PLATFORM_OHOS
+    case VK_STRUCTURE_TYPE_SURFACE_CREATE_INFO_OHOS: {
+       VkSurfaceCreateInfoOHOS *sci = (VkSurfaceCreateInfoOHOS *)&cdt->info.bos;
++      if (!VKSCR(CreateSurfaceOHOS)) {
++         mesa_loge("ZINK: VK_OHOS_surface is not available");
++         return VK_NULL_HANDLE;
++      }
+       error = VKSCR(CreateSurfaceOHOS)(screen->instance, sci, NULL, &surface);
+       break;
+    }
+-- 
+2.43.0
+
